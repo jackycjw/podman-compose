@@ -1,2 +1,4 @@
 podman-compose.exe
 .idea
+/podman-compose
+/docker-compose.yaml

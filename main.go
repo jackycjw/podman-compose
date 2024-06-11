@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
+	"podman-compose/compose"
 	"podman-compose/registry"
 	_ "podman-compose/up"
 )
@@ -22,7 +23,12 @@ func main() {
 	for _, cmd := range registry.Commands {
 		rootCmd.AddCommand(cmd)
 	}
-	if err := rootCmd.Execute(); err != nil {
+	//初始化Compose文件
+	err := compose.InitCompose()
+	if err != nil {
+		fmt.Println(err)
+	}
+	if err = rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
