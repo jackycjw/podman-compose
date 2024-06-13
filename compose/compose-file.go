@@ -32,6 +32,7 @@ type ServiceConfig struct {
 type DockerCompose struct {
 	Version  string                   `yaml:"version"`
 	Services map[string]ServiceConfig `yaml:"services"`
+	Workdir  string
 }
 
 var dockerCompose DockerCompose

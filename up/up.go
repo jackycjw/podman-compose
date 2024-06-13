@@ -1,15 +1,19 @@
 package up
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/containers/libpod/pkg/bindings"
 	"github.com/spf13/cobra"
 	"os"
-	"os/exec"
+	"podman-compose/cli"
 	"podman-compose/compose"
+	"podman-compose/constant"
 	"podman-compose/registry"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var upCmd = &cobra.Command{
@@ -18,32 +22,117 @@ var upCmd = &cobra.Command{
 	Run:   up,
 }
 
-var daemon bool = false
+var detach bool = false
+
+var connection context.Context
 
 func init() {
-	upCmd.Flags().BoolVarP(&daemon, "daemon", "d", false, "daemon mode")
+	upCmd.Flags().BoolVarP(&detach, "detach", "d", false, "daemon mode")
 	registry.Commands = append(registry.Commands, upCmd)
 }
 
 func up(cmd *cobra.Command, args []string) {
+	var err error
+	connection, err = bindings.NewConnection(context.Background(), "unix:///run/podman/podman.sock")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 	dockerCompose := compose.GetDockerCompose()
 	for serviceName := range dockerCompose.Services {
-		fmt.Println("服务名称: ", serviceName)
-		command, err := getCommand(serviceName, dockerCompose.Services[serviceName])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-			return
-		}
-		podmanCmd, err := exec.LookPath("podman")
-		cmd := exec.Command(podmanCmd, command...)
+		serviceUp(serviceName, dockerCompose.Services[serviceName])
+		//fmt.Println("服务名称: ", serviceName)
+		//command, err := getCommand(serviceName, dockerCompose.Services[serviceName])
+		//if err != nil {
+		//	fmt.Println(err)
+		//	os.Exit(1)
+		//	return
+		//}
+		//podmanCmd, err := exec.LookPath("podman")
+		//cmd := exec.Command(podmanCmd, command...)
+		//
+		//cmd.Stdout = os.Stdout
+		//cmd.Stderr = os.Stdout
+		//err = cmd.Run()
+		//if err != nil {
+		//	fmt.Println(err)
+		//}
+	}
+}
 
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stdout
-		err = cmd.Run()
-		if err != nil {
-			fmt.Println(err)
+func serviceUp(serviceName string, service compose.ServiceConfig) {
+	container, exist := getContainer(serviceName)
+	fmt.Println(container.Image, container)
+	upToDate := false
+	if exist {
+
+	}
+
+	if exist {
+
+	} else {
+		upToDate = false
+	}
+	if !upToDate {
+
+	} else {
+		fmt.Println(serviceName, "is up to date")
+	}
+}
+
+// 是否是最新
+func isUpToDate(listContainer cli.ListContainer, service compose.ServiceConfig) bool {
+
+	key1V := listContainer.Labels[constant.LabelConfigKey1]
+	key2V := listContainer.Labels[constant.LabelConfigKey2]
+
+	expectKey1V, expectKey2V := service.GetUnique()
+	if key1V == expectKey1V || key2V == expectKey2V {
+		return true
+	} else {
+		return false
+	}
+}
+
+var containerList []cli.ListContainer
+var lock sync.Mutex
+
+func getContainer(serviceName string) (cli.ListContainer, bool) {
+	initContainerList()
+
+	for _, container := range containerList {
+		v, ok := container.Labels[constant.LabelComposeServiceName]
+		if ok && v == serviceName {
+			return container, true
 		}
+	}
+	return cli.ListContainer{}, false
+}
+
+func initContainerList() {
+	workDir, _ := os.Getwd()
+
+	if containerList == nil {
+		lock.Lock()
+		if containerList == nil {
+			containerListTmp := make([]cli.ListContainer, 0)
+			cs, err := cli.List(connection, nil, nil, nil, nil, nil, nil)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			for _, c := range cs {
+				fmt.Println(c.Image, c)
+				v, ok := c.Labels[constant.LabelComposeDir]
+				if ok {
+					if v == workDir {
+						containerListTmp = append(containerListTmp, c)
+					}
+				}
+			}
+			containerList = containerListTmp
+		}
+		lock.Unlock()
 	}
 }
 
@@ -53,7 +142,7 @@ func up(cmd *cobra.Command, args []string) {
 */
 func getCommand(name string, service compose.ServiceConfig) ([]string, error) {
 	command := []string{"run"}
-	if daemon {
+	if detach {
 		command = append(command, "--detach")
 	}
 	//端口

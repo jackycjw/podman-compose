@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
@@ -19,7 +20,17 @@ Usage:
   docker-compose -h|--help`,
 }
 
+type Test struct {
+	Name  string
+	Kv    map[string]string
+	Label []string
+}
+
 func main() {
+	test := Test{Name: "陈家文", Kv: map[string]string{"a": "b", "c": "d"}, Label: []string{"e", "h", "j"}}
+
+	binary.Write(os.Stdout, binary.LittleEndian, test)
+
 	for _, cmd := range registry.Commands {
 		rootCmd.AddCommand(cmd)
 	}
