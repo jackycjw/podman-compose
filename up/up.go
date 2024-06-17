@@ -40,10 +40,29 @@ func up(cmd *cobra.Command, args []string) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	dockerCompose := compose.GetDockerCompose()
-	for serviceName := range dockerCompose.Services {
-		serviceUp(serviceName, dockerCompose.Services[serviceName])
+
+	services := map[string]string{}
+	for _, arg := range args {
+		services[arg] = "1"
 	}
+	if len(services) == 0 {
+		dockerCompose := compose.GetDockerCompose()
+		for serviceName := range dockerCompose.Services {
+			serviceUp(serviceName, dockerCompose.Services[serviceName])
+		}
+	} else {
+		for service, _ := range services {
+			dockerCompose := compose.GetDockerCompose()
+			serviceConfig, exist := dockerCompose.Services[service]
+			if !exist {
+				fmt.Printf("Service %s does not exist\n", service)
+			} else {
+				serviceUp(service, serviceConfig)
+			}
+		}
+
+	}
+
 }
 
 func serviceUp(serviceName string, service compose.ServiceConfig) {
