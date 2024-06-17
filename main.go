@@ -20,12 +20,6 @@ Usage:
   docker-compose -h|--help`,
 }
 
-type Test struct {
-	Name  string
-	Kv    map[string]string
-	Label []string
-}
-
 func main() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	for _, cmd := range registry.Commands {
