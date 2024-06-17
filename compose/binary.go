@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func (config *ServiceConfig) GetUnique() (string, string) {
+func (config *ServiceConfig) GetUnique() string {
 
 	key1 := config.toBinary()
 	key2 := key1 + "-key2"
@@ -19,7 +19,7 @@ func (config *ServiceConfig) GetUnique() (string, string) {
 	m = md5.New()
 	m.Write([]byte(key2))
 	md52 := hex.EncodeToString(m.Sum(nil))
-	return md51, md52
+	return md51 + "-" + md52
 }
 
 func (config *ServiceConfig) toBinary() string {

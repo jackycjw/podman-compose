@@ -51,6 +51,15 @@ type ListContainer struct {
 	State string
 }
 
+type ContainerDetail struct {
+	Image     string `json:"Image"`
+	ImageName string `json:"ImageName"`
+}
+
+type ImageData struct {
+	ID string `json:"Id"`
+}
+
 func List(ctx context.Context, filters map[string][]string, all *bool, last *int, pod, size, sync *bool) ([]ListContainer, error) { // nolint:typecheck
 	conn, err := bindings.GetClient(ctx)
 	if err != nil {
@@ -85,4 +94,38 @@ func List(ctx context.Context, filters map[string][]string, all *bool, last *int
 		return containers, err
 	}
 	return containers, response.Process(&containers)
+}
+
+func Inspect(ctx context.Context, nameOrID string, size *bool) (*ContainerDetail, error) {
+	conn, err := bindings.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	params := url.Values{}
+	if size != nil {
+		params.Set("size", strconv.FormatBool(*size))
+	}
+	response, err := conn.DoRequest(nil, http.MethodGet, "/containers/%s/json", params, nameOrID)
+	if err != nil {
+		return nil, err
+	}
+	inspect := ContainerDetail{}
+	return &inspect, response.Process(&inspect)
+}
+
+func GetImage(ctx context.Context, nameOrID string, size *bool) (*ImageData, error) {
+	conn, err := bindings.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	params := url.Values{}
+	if size != nil {
+		params.Set("size", strconv.FormatBool(*size))
+	}
+	inspectedData := ImageData{}
+	response, err := conn.DoRequest(nil, http.MethodGet, "/images/%s/json", params, nameOrID)
+	if err != nil {
+		return &inspectedData, err
+	}
+	return &inspectedData, response.Process(&inspectedData)
 }

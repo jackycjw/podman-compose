@@ -41,6 +41,14 @@ var dockerCompose DockerCompose
 func GetDockerCompose() DockerCompose {
 	return dockerCompose
 }
+
+func GetComposeDir() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		fmt.Println(err)
+	}
+	return dir
+}
 func InitCompose() error {
 	file, err := getComposeFile()
 	if err != nil {

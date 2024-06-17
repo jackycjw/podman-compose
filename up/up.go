@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/containers/libpod/pkg/bindings"
+	"github.com/containers/libpod/pkg/bindings/containers"
 	"github.com/spf13/cobra"
 	"os"
+	"os/exec"
 	"podman-compose/cli"
 	"podman-compose/compose"
 	"podman-compose/constant"
@@ -41,57 +43,66 @@ func up(cmd *cobra.Command, args []string) {
 	dockerCompose := compose.GetDockerCompose()
 	for serviceName := range dockerCompose.Services {
 		serviceUp(serviceName, dockerCompose.Services[serviceName])
-		//fmt.Println("服务名称: ", serviceName)
-		//command, err := getCommand(serviceName, dockerCompose.Services[serviceName])
-		//if err != nil {
-		//	fmt.Println(err)
-		//	os.Exit(1)
-		//	return
-		//}
-		//podmanCmd, err := exec.LookPath("podman")
-		//cmd := exec.Command(podmanCmd, command...)
-		//
-		//cmd.Stdout = os.Stdout
-		//cmd.Stderr = os.Stdout
-		//err = cmd.Run()
-		//if err != nil {
-		//	fmt.Println(err)
-		//}
 	}
 }
 
 func serviceUp(serviceName string, service compose.ServiceConfig) {
 	container, exist := getContainer(serviceName)
-	fmt.Println(container.Image, container)
-	upToDate := false
-	if exist {
+	upToDate := exist && isUpToDate(container, service)
 
-	}
-
-	if exist {
-
-	} else {
-		upToDate = false
-	}
-	if !upToDate {
-
-	} else {
+	if upToDate {
 		fmt.Println(serviceName, "is up to date")
+	} else {
+		if exist {
+			force := true
+			fmt.Println(serviceName + " recreating...")
+			containers.Remove(connection, container.ID, &force, nil)
+		}
+
+		command, err := getCommand(serviceName, service)
+		if err != nil {
+			fmt.Println(serviceName, ":", err)
+			os.Exit(1)
+		}
+		podmanCmd, err := exec.LookPath("podman")
+		cmd := exec.Command(podmanCmd, command...)
+
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stdout
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println(serviceName, ":", err)
+			os.Exit(1)
+		}
+		fmt.Println(serviceName + " created")
 	}
 }
 
 // 是否是最新
 func isUpToDate(listContainer cli.ListContainer, service compose.ServiceConfig) bool {
 
-	key1V := listContainer.Labels[constant.LabelConfigKey1]
-	key2V := listContainer.Labels[constant.LabelConfigKey2]
-
-	expectKey1V, expectKey2V := service.GetUnique()
-	if key1V == expectKey1V || key2V == expectKey2V {
-		return true
-	} else {
-		return false
+	// 运行中 && 配置未修改 && 镜像也未修改  则是 up to date
+	if listContainer.State == "running" {
+		key := listContainer.Labels[constant.LabelConfigKey]
+		expectKey := service.GetUnique()
+		if key == expectKey {
+			detail, err := cli.Inspect(connection, listContainer.ID, nil)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			image, err := cli.GetImage(connection, service.Image, nil)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+			if detail.Image == image.ID {
+				return true
+			}
+		}
 	}
+
+	return false
 }
 
 var containerList []cli.ListContainer
@@ -109,6 +120,10 @@ func getContainer(serviceName string) (cli.ListContainer, bool) {
 	return cli.ListContainer{}, false
 }
 
+/*
+*
+初始化容器列表
+*/
 func initContainerList() {
 	workDir, _ := os.Getwd()
 
@@ -116,13 +131,13 @@ func initContainerList() {
 		lock.Lock()
 		if containerList == nil {
 			containerListTmp := make([]cli.ListContainer, 0)
-			cs, err := cli.List(connection, nil, nil, nil, nil, nil, nil)
+			all := true
+			cs, err := cli.List(connection, nil, &all, nil, nil, nil, nil)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 			for _, c := range cs {
-				fmt.Println(c.Image, c)
 				v, ok := c.Labels[constant.LabelComposeDir]
 				if ok {
 					if v == workDir {
@@ -158,7 +173,6 @@ func getCommand(name string, service compose.ServiceConfig) ([]string, error) {
 	}
 
 	//容器名称
-	fmt.Println("service.ContainerName ", service.ContainerName)
 	if strings.TrimSpace(service.ContainerName) != "" {
 		command = append(command, "--name", service.ContainerName)
 	}
@@ -178,6 +192,15 @@ func getCommand(name string, service compose.ServiceConfig) ([]string, error) {
 		command = append(command, "--restart", service.Restart)
 	}
 
+	//标签
+	command = append(command, "--label", constant.LabelComposeDir+"="+compose.GetComposeDir())
+	command = append(command, "--label", constant.LabelComposeServiceName+"="+name)
+	command = append(command, "--label", constant.LabelConfigKey+"="+service.GetUnique())
+
+	//环境
+	for k, v := range service.Environment {
+		command = append(command, "--env", k+"="+v)
+	}
 	//镜像
 	command, err = formatImage(command, &service)
 	if err != nil {
@@ -207,6 +230,10 @@ func formatImage(command []string, service *compose.ServiceConfig) ([]string, er
 	image := strings.TrimSpace(service.Image)
 	if image == "" {
 		return command, errors.New("image is required")
+	}
+	_, err := cli.GetImage(connection, image, nil)
+	if err != nil {
+		return command, err
 	}
 	command = append(command, service.Image)
 	return command, nil
