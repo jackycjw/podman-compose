@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
 	"podman-compose/compose"
+	_ "podman-compose/down"
 	"podman-compose/registry"
 	_ "podman-compose/up"
 )
@@ -27,10 +27,7 @@ type Test struct {
 }
 
 func main() {
-	test := Test{Name: "陈家文", Kv: map[string]string{"a": "b", "c": "d"}, Label: []string{"e", "h", "j"}}
-
-	binary.Write(os.Stdout, binary.LittleEndian, test)
-
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	for _, cmd := range registry.Commands {
 		rootCmd.AddCommand(cmd)
 	}
@@ -39,6 +36,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
+
 	if err = rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

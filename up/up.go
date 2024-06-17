@@ -12,10 +12,10 @@ import (
 	"podman-compose/cli"
 	"podman-compose/compose"
 	"podman-compose/constant"
+	"podman-compose/down"
 	"podman-compose/registry"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 var upCmd = &cobra.Command{
@@ -24,12 +24,15 @@ var upCmd = &cobra.Command{
 	Run:   up,
 }
 
-var detach bool = false
+var detach = false
 
+// 删除孤立项
+var removeOrphans = false
 var connection context.Context
 
 func init() {
 	upCmd.Flags().BoolVarP(&detach, "detach", "d", false, "daemon mode")
+	upCmd.Flags().BoolVarP(&removeOrphans, "remove-orphans", "", false, "Remove containers for services not defined in the Compose file")
 	registry.Commands = append(registry.Commands, upCmd)
 }
 
@@ -62,11 +65,13 @@ func up(cmd *cobra.Command, args []string) {
 		}
 
 	}
+	//删除重复项
+	down.RemoveOrphans(removeOrphans)
 
 }
 
 func serviceUp(serviceName string, service compose.ServiceConfig) {
-	container, exist := getContainer(serviceName)
+	container, exist := compose.GetContainer(serviceName)
 	upToDate := exist && isUpToDate(container, service)
 
 	if upToDate {
@@ -122,52 +127,6 @@ func isUpToDate(listContainer cli.ListContainer, service compose.ServiceConfig) 
 	}
 
 	return false
-}
-
-var containerList []cli.ListContainer
-var lock sync.Mutex
-
-func getContainer(serviceName string) (cli.ListContainer, bool) {
-	initContainerList()
-
-	for _, container := range containerList {
-		v, ok := container.Labels[constant.LabelComposeServiceName]
-		if ok && v == serviceName {
-			return container, true
-		}
-	}
-	return cli.ListContainer{}, false
-}
-
-/*
-*
-初始化容器列表
-*/
-func initContainerList() {
-	workDir, _ := os.Getwd()
-
-	if containerList == nil {
-		lock.Lock()
-		if containerList == nil {
-			containerListTmp := make([]cli.ListContainer, 0)
-			all := true
-			cs, err := cli.List(connection, nil, &all, nil, nil, nil, nil)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			for _, c := range cs {
-				v, ok := c.Labels[constant.LabelComposeDir]
-				if ok {
-					if v == workDir {
-						containerListTmp = append(containerListTmp, c)
-					}
-				}
-			}
-			containerList = containerListTmp
-		}
-		lock.Unlock()
-	}
 }
 
 /*
