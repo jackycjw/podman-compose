@@ -87,11 +87,11 @@ func up(cmd *cobra.Command, args []string) {
 		case <-channel:
 			serviceNum--
 			if serviceNum == 0 {
-				fmt.Println("结束")
-				break
+				goto Loop
 			}
 		}
 	}
+Loop:
 	//删除重复项
 	down.RemoveOrphans(removeOrphans)
 
@@ -102,7 +102,7 @@ func serviceUp(serviceName string, service compose.ServiceConfig, channel chan i
 	upToDate := exist && isUpToDate(container, service)
 
 	if upToDate {
-		fmt.Println(compose.FormatServiceName(serviceName), " is up to date")
+		fmt.Println(compose.FormatServiceName(serviceName) + " is up to date")
 	} else {
 		if exist {
 			force := true
