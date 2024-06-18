@@ -8,6 +8,7 @@ import (
 	"podman-compose/compose"
 	"podman-compose/constant"
 	"podman-compose/registry"
+	"podman-compose/util"
 )
 
 var downCmd = &cobra.Command{
@@ -67,9 +68,11 @@ func RemoveOrphans(removeOrphans bool) {
 			expectServiceName := container.Labels[constant.LabelComposeServiceName]
 			_, exist := dockerCompose.Services[expectServiceName]
 			if !exist {
-				fmt.Println("orphans {" + expectServiceName + "} removing...")
+				fmt.Print("orphans {" + expectServiceName + "} removing...")
 				force := true
 				cli.Remove(container.ID, &force, nil)
+				fmt.Print(util.TextColor(32, "down"))
+				fmt.Println()
 			}
 		}
 	} else {
@@ -93,7 +96,9 @@ func serviceDown(serviceName string) {
 
 	if exist {
 		force := true
-		fmt.Println(serviceName + " removing...")
+		fmt.Print(compose.FormatServiceName(serviceName) + " removing...")
 		cli.Remove(container.ID, &force, nil)
+		fmt.Print(util.TextColor(32, "down"))
+		fmt.Println()
 	}
 }

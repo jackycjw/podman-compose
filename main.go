@@ -8,6 +8,7 @@ import (
 	_ "podman-compose/down"
 	_ "podman-compose/ps"
 	"podman-compose/registry"
+	"podman-compose/startup"
 	_ "podman-compose/up"
 )
 
@@ -22,6 +23,13 @@ Usage:
 }
 
 func main() {
+
+	//开机启动
+	if len(os.Args) > 1 && os.Args[1] == "startup" {
+		startup.StartUp()
+		return
+	}
+
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	for _, cmd := range registry.Commands {
 		rootCmd.AddCommand(cmd)
@@ -29,7 +37,8 @@ func main() {
 	//初始化Compose文件
 	err := compose.InitCompose()
 	if err != nil {
-		fmt.Println("111", err)
+		fmt.Println(err)
+		return
 	}
 
 	if err = rootCmd.Execute(); err != nil {

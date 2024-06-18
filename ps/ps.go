@@ -6,6 +6,7 @@ import (
 	"podman-compose/cli"
 	"podman-compose/compose"
 	"podman-compose/registry"
+	"podman-compose/util"
 	"strings"
 )
 
@@ -39,29 +40,12 @@ func ps(cmd *cobra.Command, args []string) {
 }
 
 func toString(container cli.ListContainer) string {
-	return formatString(container.Names[0], 16, false) +
-		formatString(" "+strings.Join(container.Command, " "), 30, true) +
-		formatString(" "+container.State, 9, false) +
-		formatString(" "+formatPortString(container.Ports), 46, true)
+	return util.FixSizeString(container.Names[0], 16, false) +
+		util.FixSizeString(" "+strings.Join(container.Command, " "), 30, true) +
+		util.FixSizeString(" "+container.State, 9, false) +
+		util.FixSizeString(" "+formatPortString(container.Ports), 46, true)
 }
 
-func formatString(str string, length int, middle bool) string {
-	if len(str) == length {
-		return str
-	} else if len(str) > length {
-		return str[0:length]
-	} else {
-		if middle {
-			left := length - len(str)
-			before := left / 2
-			after := left - before
-			return strings.Repeat(" ", before) + str + strings.Repeat(" ", after)
-		} else {
-			return str + strings.Repeat(" ", length-len(str))
-		}
-
-	}
-}
 func formatPortString(ports []cli.PortMapping) string {
 	portsArr := make([]string, 0)
 	for _, port := range ports {

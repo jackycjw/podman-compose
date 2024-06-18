@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"os"
+	"podman-compose/util"
 )
 
 // ServiceResources 定义了服务资源的限制
@@ -49,12 +50,24 @@ func GetComposeDir() string {
 	}
 	return dir
 }
+
+var fixServiceNameSize = 10
+
+func FormatServiceName(name string) string {
+	return util.FixSizeString(name, fixServiceNameSize, false)
+}
 func InitCompose() error {
 	file, err := getComposeFile()
 	if err != nil {
 		return err
 	}
 	yaml.NewDecoder(file).Decode(&dockerCompose)
+
+	for key := range dockerCompose.Services {
+		if len(key) >= fixServiceNameSize {
+			fixServiceNameSize = len(key) + 1
+		}
+	}
 	return nil
 }
 

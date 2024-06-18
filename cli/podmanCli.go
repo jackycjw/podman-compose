@@ -77,8 +77,20 @@ func (r *PortMapping) String() string {
 }
 
 type ContainerDetail struct {
-	Image     string `json:"Image"`
-	ImageName string `json:"ImageName"`
+	Image      string                      `json:"Image"`
+	ImageName  string                      `json:"ImageName"`
+	HostConfig *InspectContainerHostConfig `json:"HostConfig"`
+}
+
+type InspectContainerHostConfig struct {
+	// RestartPolicy contains the container's restart policy.
+	RestartPolicy *InspectRestartPolicy `json:"RestartPolicy"`
+}
+
+// InspectRestartPolicy holds information about the container's restart policy.
+type InspectRestartPolicy struct {
+	// Name contains the container's restart policy.
+	Name string `json:"Name"`
 }
 
 type ImageData struct {
@@ -181,6 +193,22 @@ func Remove(nameOrID string, force, volumes *bool) error {
 		params.Set("vols", strconv.FormatBool(*volumes))
 	}
 	response, err := conn.DoRequest(nil, http.MethodDelete, "/containers/%s", params, nameOrID)
+	if err != nil {
+		return err
+	}
+	return response.Process(nil)
+}
+
+func Start(nameOrID string, detachKeys *string) error {
+	conn, err := bindings.GetClient(Connection)
+	if err != nil {
+		return err
+	}
+	params := url.Values{}
+	if detachKeys != nil {
+		params.Set("detachKeys", *detachKeys)
+	}
+	response, err := conn.DoRequest(nil, http.MethodPost, "/containers/%s/start", params, nameOrID)
 	if err != nil {
 		return err
 	}

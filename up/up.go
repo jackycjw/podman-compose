@@ -11,6 +11,7 @@ import (
 	"podman-compose/constant"
 	"podman-compose/down"
 	"podman-compose/registry"
+	"podman-compose/util"
 	"strconv"
 	"strings"
 )
@@ -43,41 +44,72 @@ func up(cmd *cobra.Command, args []string) {
 	for _, arg := range args {
 		services[arg] = "1"
 	}
+
+	dockerCompose := compose.GetDockerCompose()
+
+	//先统计服务总数
+	//如果是 非 detach 模式， 则异步一起启动
+	var serviceNum int
+	var channel chan int
 	if len(services) == 0 {
-		dockerCompose := compose.GetDockerCompose()
+		serviceNum = len(dockerCompose.Services)
+	} else {
+		serviceNum = len(services)
+	}
+	channel = make(chan int, serviceNum)
+
+	if len(services) == 0 {
 		for serviceName := range dockerCompose.Services {
-			serviceUp(serviceName, dockerCompose.Services[serviceName])
+			if detach {
+				serviceUp(serviceName, dockerCompose.Services[serviceName], channel)
+			} else {
+				go serviceUp(serviceName, dockerCompose.Services[serviceName], channel)
+			}
 		}
 	} else {
 		for service, _ := range services {
-			dockerCompose := compose.GetDockerCompose()
 			serviceConfig, exist := dockerCompose.Services[service]
 			if !exist {
 				fmt.Printf("Service %s does not exist\n", service)
+				channel <- 1
 			} else {
-				serviceUp(service, serviceConfig)
+				if detach {
+					serviceUp(service, serviceConfig, channel)
+				} else {
+					go serviceUp(service, serviceConfig, channel)
+				}
 			}
 		}
+	}
 
+	for {
+		select {
+		case <-channel:
+			serviceNum--
+			if serviceNum == 0 {
+				fmt.Println("结束")
+				break
+			}
+		}
 	}
 	//删除重复项
 	down.RemoveOrphans(removeOrphans)
 
 }
 
-func serviceUp(serviceName string, service compose.ServiceConfig) {
+func serviceUp(serviceName string, service compose.ServiceConfig, channel chan int) {
 	container, exist := compose.GetContainer(serviceName)
 	upToDate := exist && isUpToDate(container, service)
 
 	if upToDate {
-		fmt.Println(serviceName, "is up to date")
+		fmt.Println(compose.FormatServiceName(serviceName), " is up to date")
 	} else {
 		if exist {
 			force := true
-			fmt.Print(serviceName + " recreating... ")
+			fmt.Print(compose.FormatServiceName(serviceName) + " recreating... ")
 			cli.Remove(container.ID, &force, nil)
 		} else {
-			fmt.Print(serviceName + " creating... ")
+			fmt.Print(compose.FormatServiceName(serviceName) + " creating... ")
 		}
 
 		command, err := getCommand(serviceName, service)
@@ -91,15 +123,12 @@ func serviceUp(serviceName string, service compose.ServiceConfig) {
 		err = cmd.Run()
 		if err != nil {
 			fmt.Println(serviceName, ":", err)
-			os.Exit(1)
+			return
 		}
-		fmt.Print(textColor(32, "done"))
+		fmt.Print(util.TextColor(32, "done"))
 		fmt.Println()
 	}
-}
-
-func textColor(color int, str string) string {
-	return fmt.Sprintf("\x1b[0;%dm%s\x1b[0m", color, str)
+	channel <- 1
 }
 
 // 是否是最新
