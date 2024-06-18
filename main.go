@@ -6,6 +6,7 @@ import (
 	"os"
 	"podman-compose/compose"
 	_ "podman-compose/down"
+	_ "podman-compose/ps"
 	"podman-compose/registry"
 	_ "podman-compose/up"
 )
@@ -28,7 +29,7 @@ func main() {
 	//初始化Compose文件
 	err := compose.InitCompose()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("111", err)
 	}
 
 	if err = rootCmd.Execute(); err != nil {

@@ -2,9 +2,9 @@ package down
 
 import (
 	"fmt"
-	"github.com/containers/libpod/pkg/bindings/containers"
 	"github.com/spf13/cobra"
 	"os"
+	"podman-compose/cli"
 	"podman-compose/compose"
 	"podman-compose/constant"
 	"podman-compose/registry"
@@ -69,7 +69,7 @@ func RemoveOrphans(removeOrphans bool) {
 			if !exist {
 				fmt.Println("orphans {" + expectServiceName + "} removing...")
 				force := true
-				containers.Remove(compose.Connection, container.ID, &force, nil)
+				cli.Remove(container.ID, &force, nil)
 			}
 		}
 	} else {
@@ -94,6 +94,6 @@ func serviceDown(serviceName string) {
 	if exist {
 		force := true
 		fmt.Println(serviceName + " removing...")
-		containers.Remove(compose.Connection, container.ID, &force, nil)
+		cli.Remove(container.ID, &force, nil)
 	}
 }

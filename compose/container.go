@@ -1,9 +1,7 @@
 package compose
 
 import (
-	"context"
 	"fmt"
-	"github.com/containers/libpod/pkg/bindings"
 	"os"
 	"podman-compose/cli"
 	"podman-compose/constant"
@@ -12,18 +10,9 @@ import (
 
 var ContainerList []cli.ListContainer
 var lock sync.Mutex
-var Connection context.Context
 
-func init() {
-	var err error
-	Connection, err = bindings.NewConnection(context.Background(), "unix:///run/podman/podman.sock")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-}
 func GetContainer(serviceName string) (cli.ListContainer, bool) {
-	initContainerList()
+	InitContainerList()
 
 	for _, container := range ContainerList {
 		v, ok := container.Labels[constant.LabelComposeServiceName]
@@ -38,7 +27,7 @@ func GetContainer(serviceName string) (cli.ListContainer, bool) {
 *
 初始化容器列表
 */
-func initContainerList() {
+func InitContainerList() {
 	workDir, _ := os.Getwd()
 
 	if ContainerList == nil {
@@ -46,7 +35,7 @@ func initContainerList() {
 		if ContainerList == nil {
 			containerListTmp := make([]cli.ListContainer, 0)
 			all := true
-			cs, err := cli.List(Connection, nil, &all, nil, nil, nil, nil)
+			cs, err := cli.List(nil, &all, nil, nil, nil, nil)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)

@@ -2,11 +2,12 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"github.com/containers/libpod/cmd/podman/shared"
 	"github.com/containers/libpod/pkg/bindings"
-	"github.com/cri-o/ocicni/pkg/ocicni"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 )
 
@@ -42,13 +43,37 @@ type ListContainer struct {
 	// boolean to be set
 	PodName string
 	// Port mappings
-	Ports []ocicni.PortMapping
+	Ports []PortMapping
 	// Size of the container rootfs.  Requires the size boolean to be true
 	Size *shared.ContainerSize
 	// Time when container started
 	StartedAt int64
 	// State of container
 	State string
+}
+
+type PortMapping struct {
+	// HostPort is the port number on the host.
+	HostPort  int32 `json:"hostPort"`
+	HostPort2 int32 `json:"host_port"`
+	// ContainerPort is the port number inside the sandbox.
+	ContainerPort  int32 `json:"containerPort"`
+	ContainerPort2 int32 `json:"container_port"`
+	// Protocol is the protocol of the port mapping.
+	Protocol string `json:"protocol"`
+	// HostIP is the host ip to use.
+	HostIP  string `json:"hostIP"`
+	HostIP2 string `json:"host_ip"`
+}
+
+func (r *PortMapping) String() string {
+	hostIp := r.HostIP + r.HostIP2
+	hostPort := r.HostPort + r.HostPort2
+	containerPort := r.ContainerPort + r.ContainerPort2
+	if hostIp == "" {
+		hostIp = "0.0.0.0"
+	}
+	return hostIp + ":" + strconv.Itoa(int(hostPort)) + "->" + strconv.Itoa(int(containerPort)) + "/" + r.Protocol
 }
 
 type ContainerDetail struct {
@@ -60,8 +85,18 @@ type ImageData struct {
 	ID string `json:"Id"`
 }
 
-func List(ctx context.Context, filters map[string][]string, all *bool, last *int, pod, size, sync *bool) ([]ListContainer, error) { // nolint:typecheck
-	conn, err := bindings.GetClient(ctx)
+var Connection context.Context
+
+func init() {
+	var err error
+	Connection, err = bindings.NewConnection(context.Background(), "unix:///run/podman/podman.sock")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+func List(filters map[string][]string, all *bool, last *int, pod, size, sync *bool) ([]ListContainer, error) { // nolint:typecheck
+	conn, err := bindings.GetClient(Connection)
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +131,8 @@ func List(ctx context.Context, filters map[string][]string, all *bool, last *int
 	return containers, response.Process(&containers)
 }
 
-func Inspect(ctx context.Context, nameOrID string, size *bool) (*ContainerDetail, error) {
-	conn, err := bindings.GetClient(ctx)
+func Inspect(nameOrID string, size *bool) (*ContainerDetail, error) {
+	conn, err := bindings.GetClient(Connection)
 	if err != nil {
 		return nil, err
 	}
@@ -113,8 +148,8 @@ func Inspect(ctx context.Context, nameOrID string, size *bool) (*ContainerDetail
 	return &inspect, response.Process(&inspect)
 }
 
-func GetImage(ctx context.Context, nameOrID string, size *bool) (*ImageData, error) {
-	conn, err := bindings.GetClient(ctx)
+func GetImage(nameOrID string, size *bool) (*ImageData, error) {
+	conn, err := bindings.GetClient(Connection)
 	if err != nil {
 		return nil, err
 	}
@@ -128,4 +163,26 @@ func GetImage(ctx context.Context, nameOrID string, size *bool) (*ImageData, err
 		return &inspectedData, err
 	}
 	return &inspectedData, response.Process(&inspectedData)
+}
+
+// Remove removes a container from local storage.  The force bool designates
+// that the container should be removed forcibly (example, even it is running).  The volumes
+// bool dictates that a container's volumes should also be removed.
+func Remove(nameOrID string, force, volumes *bool) error {
+	conn, err := bindings.GetClient(Connection)
+	if err != nil {
+		return err
+	}
+	params := url.Values{}
+	if force != nil {
+		params.Set("force", strconv.FormatBool(*force))
+	}
+	if volumes != nil {
+		params.Set("vols", strconv.FormatBool(*volumes))
+	}
+	response, err := conn.DoRequest(nil, http.MethodDelete, "/containers/%s", params, nameOrID)
+	if err != nil {
+		return err
+	}
+	return response.Process(nil)
 }

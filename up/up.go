@@ -1,11 +1,8 @@
 package up
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"github.com/containers/libpod/pkg/bindings"
-	"github.com/containers/libpod/pkg/bindings/containers"
 	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
@@ -28,7 +25,6 @@ var detach = false
 
 // 删除孤立项
 var removeOrphans = false
-var connection context.Context
 
 func init() {
 	upCmd.Flags().BoolVarP(&detach, "detach", "d", false, "daemon mode")
@@ -38,7 +34,6 @@ func init() {
 
 func up(cmd *cobra.Command, args []string) {
 	var err error
-	connection, err = bindings.NewConnection(context.Background(), "unix:///run/podman/podman.sock")
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -79,8 +74,10 @@ func serviceUp(serviceName string, service compose.ServiceConfig) {
 	} else {
 		if exist {
 			force := true
-			fmt.Println(serviceName + " recreating...")
-			containers.Remove(connection, container.ID, &force, nil)
+			fmt.Print(serviceName + " recreating... ")
+			cli.Remove(container.ID, &force, nil)
+		} else {
+			fmt.Print(serviceName + " creating... ")
 		}
 
 		command, err := getCommand(serviceName, service)
@@ -90,16 +87,19 @@ func serviceUp(serviceName string, service compose.ServiceConfig) {
 		}
 		podmanCmd, err := exec.LookPath("podman")
 		cmd := exec.Command(podmanCmd, command...)
-
-		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stdout
 		err = cmd.Run()
 		if err != nil {
 			fmt.Println(serviceName, ":", err)
 			os.Exit(1)
 		}
-		fmt.Println(serviceName + " created")
+		fmt.Print(textColor(32, "done"))
+		fmt.Println()
 	}
+}
+
+func textColor(color int, str string) string {
+	return fmt.Sprintf("\x1b[0;%dm%s\x1b[0m", color, str)
 }
 
 // 是否是最新
@@ -110,12 +110,12 @@ func isUpToDate(listContainer cli.ListContainer, service compose.ServiceConfig) 
 		key := listContainer.Labels[constant.LabelConfigKey]
 		expectKey := service.GetUnique()
 		if key == expectKey {
-			detail, err := cli.Inspect(connection, listContainer.ID, nil)
+			detail, err := cli.Inspect(listContainer.ID, nil)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			image, err := cli.GetImage(connection, service.Image, nil)
+			image, err := cli.GetImage(service.Image, nil)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -209,7 +209,7 @@ func formatImage(command []string, service *compose.ServiceConfig) ([]string, er
 	if image == "" {
 		return command, errors.New("image is required")
 	}
-	_, err := cli.GetImage(connection, image, nil)
+	_, err := cli.GetImage(image, nil)
 	if err != nil {
 		return command, err
 	}
