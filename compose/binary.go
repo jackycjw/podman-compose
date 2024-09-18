@@ -33,12 +33,14 @@ func (config *ServiceConfig) toBinary() string {
 	rs = append(rs, config.Ports...)
 
 	var envKeys []string
-	for k, _ := range config.Environment {
+	mapEnv, _ := config.GetEnvironment()
+	for k, _ := range mapEnv {
 		envKeys = append(envKeys, k)
 	}
+
 	sort.Strings(envKeys)
 	for _, key := range envKeys {
-		rs = append(rs, key, config.Environment[key])
+		rs = append(rs, key, mapEnv[key])
 	}
 
 	rs = append(rs, config.Volumes...)

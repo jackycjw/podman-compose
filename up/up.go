@@ -205,7 +205,8 @@ func getCommand(name string, service compose.ServiceConfig) ([]string, error) {
 	command = append(command, "--label", constant.LabelConfigKey+"="+service.GetUnique())
 
 	//环境
-	for k, v := range service.Environment {
+	env, _ := service.GetEnvironment()
+	for k, v := range env {
 		command = append(command, "--env", k+"="+v)
 	}
 	//镜像

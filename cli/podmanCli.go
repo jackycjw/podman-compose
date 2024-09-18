@@ -3,13 +3,18 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/containers/libpod/cmd/podman/shared"
-	"github.com/containers/libpod/pkg/bindings"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 )
+
+// ContainerSize holds the size of the container's root filesystem and top
+// read-write layer.
+type ContainerSize struct {
+	RootFsSize int64 `json:"rootFsSize"`
+	RwSize     int64 `json:"rwSize"`
+}
 
 type ListContainer struct {
 	// Container command
@@ -45,7 +50,7 @@ type ListContainer struct {
 	// Port mappings
 	Ports []PortMapping
 	// Size of the container rootfs.  Requires the size boolean to be true
-	Size *shared.ContainerSize
+	Size *ContainerSize
 	// Time when container started
 	StartedAt int64
 	// State of container
@@ -97,18 +102,18 @@ type ImageData struct {
 	ID string `json:"Id"`
 }
 
-var Connection context.Context
+var connection context.Context
 
 func init() {
 	var err error
-	Connection, err = bindings.NewConnection(context.Background(), "unix:///run/podman/podman.sock")
+	connection, err = NewConnection(context.Background(), "unix:///run/podman/podman.sock")
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 func List(filters map[string][]string, all *bool, last *int, pod, size, sync *bool) ([]ListContainer, error) { // nolint:typecheck
-	conn, err := bindings.GetClient(Connection)
+	conn, err := GetClient(connection)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +135,7 @@ func List(filters map[string][]string, all *bool, last *int, pod, size, sync *bo
 		params.Set("sync", strconv.FormatBool(*sync))
 	}
 	if filters != nil {
-		filterString, err := bindings.FiltersToString(filters)
+		filterString, err := FiltersToString(filters)
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +149,7 @@ func List(filters map[string][]string, all *bool, last *int, pod, size, sync *bo
 }
 
 func Inspect(nameOrID string, size *bool) (*ContainerDetail, error) {
-	conn, err := bindings.GetClient(Connection)
+	conn, err := GetClient(connection)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +166,7 @@ func Inspect(nameOrID string, size *bool) (*ContainerDetail, error) {
 }
 
 func GetImage(nameOrID string, size *bool) (*ImageData, error) {
-	conn, err := bindings.GetClient(Connection)
+	conn, err := GetClient(connection)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +186,7 @@ func GetImage(nameOrID string, size *bool) (*ImageData, error) {
 // that the container should be removed forcibly (example, even it is running).  The volumes
 // bool dictates that a container's volumes should also be removed.
 func Remove(nameOrID string, force, volumes *bool) error {
-	conn, err := bindings.GetClient(Connection)
+	conn, err := GetClient(connection)
 	if err != nil {
 		return err
 	}
@@ -200,7 +205,7 @@ func Remove(nameOrID string, force, volumes *bool) error {
 }
 
 func Start(nameOrID string, detachKeys *string) error {
-	conn, err := bindings.GetClient(Connection)
+	conn, err := GetClient(connection)
 	if err != nil {
 		return err
 	}

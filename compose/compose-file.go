@@ -5,6 +5,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"os"
 	"podman-compose/util"
+	"strings"
 )
 
 // ServiceResources 定义了服务资源的限制
@@ -17,16 +18,47 @@ type ServiceResources struct {
 
 // ServiceConfig 定义了服务的配置
 type ServiceConfig struct {
-	Image         string            `yaml:"image"`
-	Restart       string            `yaml:"restart,omitempty"`
-	Entrypoint    string            `yaml:"entrypoint,omitempty"`
-	WorkingDir    string            `yaml:"working_dir,omitempty"`
-	Deploy        ServiceResources  `yaml:"resources,omitempty"`
-	ContainerName string            `yaml:"container_name,omitempty"`
-	Command       []string          `yaml:"command,omitempty"`
-	Ports         []string          `yaml:"ports,omitempty"`
-	Environment   map[string]string `yaml:"environment,omitempty"`
-	Volumes       []string          `yaml:"volumes,omitempty"`
+	Image         string           `yaml:"image"`
+	Restart       string           `yaml:"restart,omitempty"`
+	Entrypoint    string           `yaml:"entrypoint,omitempty"`
+	WorkingDir    string           `yaml:"working_dir,omitempty"`
+	Deploy        ServiceResources `yaml:"resources,omitempty"`
+	ContainerName string           `yaml:"container_name,omitempty"`
+	Command       []string         `yaml:"command,omitempty"`
+	Ports         []string         `yaml:"ports,omitempty"`
+	Environment   any              `yaml:"environment,omitempty"`
+	Volumes       []string         `yaml:"volumes,omitempty"`
+}
+
+func (c *ServiceConfig) GetEnvironment() (map[string]string, error) {
+	if c.Environment == nil {
+		return nil, nil
+	}
+	result := make(map[string]string)
+	envMap, ok := c.Environment.(map[string]any)
+	if ok {
+		for key, val := range envMap {
+			result[fmt.Sprintf("%v", key)] = fmt.Sprintf("%v", val)
+		}
+		return result, nil
+	}
+
+	list, ok := c.Environment.([]interface{})
+	if ok {
+		for _, item := range list {
+			kvString, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("environment \"", item, "\" format error")
+			}
+			idx := strings.IndexByte(kvString, '=')
+			if idx == -1 {
+				return nil, fmt.Errorf("environment \"", kvString, "\" format error")
+			}
+			result[kvString[:idx]] = kvString[idx+1:]
+		}
+		return result, nil
+	}
+	return nil, fmt.Errorf("environment format error")
 }
 
 // DockerCompose 定义了整个docker-compose的配置
@@ -66,6 +98,12 @@ func InitCompose() error {
 	for key := range dockerCompose.Services {
 		if len(key) >= fixServiceNameSize {
 			fixServiceNameSize = len(key) + 1
+		}
+
+		svr := dockerCompose.Services[key]
+		_, err = svr.GetEnvironment()
+		if err != nil {
+			return err
 		}
 	}
 	return nil
